@@ -388,7 +388,16 @@ async def main():
     try:
         config = load_config(args.config)
         
-        # Apply command line overrides
+        # Apply environment variable overrides
+        worker_id = os.getenv('WORKER_ID')
+        worker_role = os.getenv('WORKER_ROLE')
+        
+        if worker_id:
+            config.client_id = worker_id
+        if worker_role:
+            config.agent_capabilities = [worker_role]
+        
+        # Apply command line overrides (highest priority)
         if args.client_id:
             config.client_id = args.client_id
         if args.capabilities:

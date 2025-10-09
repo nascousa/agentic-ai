@@ -44,13 +44,15 @@ services:
     networks:
       - agent-manager-network
 
-  # MCP Worker Client (example)
-  worker-client:
+  # MCP Worker Clients (10 instances)
+  worker-analyst-1:
     build: .
     command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=analyst-1
+      - WORKER_ROLE=analyst
     depends_on:
       agent-manager:
         condition: service_started
@@ -60,8 +62,168 @@ services:
     restart: unless-stopped
     networks:
       - agent-manager-network
-    deploy:
-      replicas: 2  # Run 2 worker instances
+
+  worker-analyst-2:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=analyst-2
+      - WORKER_ROLE=analyst
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-writer-1:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=writer-1
+      - WORKER_ROLE=writer
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-writer-2:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=writer-2
+      - WORKER_ROLE=writer
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-researcher-1:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=researcher-1
+      - WORKER_ROLE=researcher
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-researcher-2:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=researcher-2
+      - WORKER_ROLE=researcher
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-developer-1:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=developer-1
+      - WORKER_ROLE=developer
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-developer-2:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=developer-2
+      - WORKER_ROLE=developer
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-tester-1:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=tester-1
+      - WORKER_ROLE=tester
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  worker-architect-1:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=architect-1
+      - WORKER_ROLE=architect
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
 
   # Redis (optional, for future caching/queuing)
   redis:
