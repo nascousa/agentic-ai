@@ -1,0 +1,48 @@
+{  "_description": "AgentManager Worker Client Configuration - Analyst",
+  "_version": "1.0.0",
+  
+  "client_id": "analyst-local-001","_description": "AgentManager Worker Client Configuration",
+  "_version": "1.0.0",
+  
+  "client_id": "researcher-local-001",
+  "server_url": "http://host.docker.internal:8000",
+  "auth_token": "ZDRjMGFmMWUtYTU1Zi00NjZhLWE3YTktNWJiZWY0MjM1NTczODY2ZDQzN2ItZDNjZC00Yzg2LTk4ODItODk4NDUxYWU3Mzdm",
+  
+  "polling_config": {
+    "polling_interval_sec": 3,
+    "max_parallel_tasks": 2,
+    "task_timeout_sec": 300,
+    "max_retries": 3,
+    "retry_delay_sec": 2
+  },
+  
+  "agent_capabilities": [
+    "analyst"
+  ],
+  
+  "logging": {
+    "level": "${LOG_LEVEL:-INFO}",
+    "format": "json",
+    "file": "/app/logs/worker.log",
+    "max_size_mb": 50,
+    "backup_count": 5
+  },
+  
+  "monitoring": {
+    "enable_metrics": "${ENABLE_METRICS:-true}",
+    "metrics_port": "${METRICS_PORT:-8080}",
+    "health_check_port": "${HEALTH_PORT:-8080}"
+  },
+  
+  "resource_limits": {
+    "max_memory_mb": "${MAX_MEMORY:-512}",
+    "max_cpu_percent": "${MAX_CPU:-80}",
+    "max_disk_mb": "${MAX_DISK:-1024}"
+  },
+  
+  "file_coordination": {
+    "enable_file_locks": "${ENABLE_FILE_LOCKS:-true}",
+    "lock_timeout_sec": "${LOCK_TIMEOUT:-30}",
+    "temp_dir": "/app/temp"
+  }
+}

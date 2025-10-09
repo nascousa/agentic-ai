@@ -1,0 +1,112 @@
+# AM (AgentManager) - Data Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User as User/System
+    participant API as FastAPI Server
+    participant Manager as AgentManager
+    participant ORM as SQLAlchemy ORM
+    participant DB as Database
+    participant Client1 as External Client 1
+    participant Client2 as External Client 2
+    participant Auditor as AuditorAgent
+    participant LLM as LLMClient
+    participant FileLock as File Lock Manager
+    
+    User->>API: POST /v1/submit_task
+    API->>Manager: Process task request
+    Manager->>LLM: Generate TaskGraph with dependencies
+    LLM->>Manager: TaskGraph with explicit dependencies
+    Manager->>ORM: Convert Pydantic to ORM models
+    ORM->>DB: Persist TaskGraph atomically
+    DB->>API: Return workflow_id
+    API->>User: TaskGraphResponse
+    
+    Note over Client1,Client2: External Client Polling Loop
+    loop Continuous Polling
+        par Client 1 Polling
+            Client1->>API: GET /v1/tasks/researcher/ready
+            API->>ORM: Query ready tasks for researcher
+            ORM->>DB: SELECT with dependency checks
+            DB->>API: Available TaskStep (if any)
+            API->>Client1: TaskStep or empty response
+        and Client 2 Polling
+            Client2->>API: GET /v1/tasks/writer/ready
+            API->>ORM: Query ready tasks for writer
+            ORM->>DB: SELECT with dependency checks
+            DB->>API: Available TaskStep (if any)
+            API->>Client2: TaskStep or empty response
+        end
+        
+        Note over Client1,Client2: Local Task Execution with File Safety
+        opt Task Available for Client 1
+            Client1->>Client1: Update task to IN_PROGRESS
+            Client1->>FileLock: Acquire file locks for task
+            FileLock->>DB: Register file access in FileAccessORM
+            loop Local RA Pattern
+                Client1->>LLM: ThoughtAction iteration
+                LLM->>Client1: Reasoning + Action decision
+                Client1->>FileLock: Check file access for action
+                FileLock->>Client1: File access granted/denied
+            end
+            Client1->>API: POST /v1/report_result
+            FileLock->>DB: Release file locks
+            API->>ORM: Save RAHistory result
+            ORM->>DB: UPDATE task status to COMPLETED
+        end
+        
+        opt Task Available for Client 2
+            Client2->>Client2: Update task to IN_PROGRESS
+            Client2->>FileLock: Acquire file locks for task
+            FileLock->>DB: Register file access in FileAccessORM
+            loop Local RA Pattern
+                Client2->>LLM: ThoughtAction iteration
+                LLM->>Client2: Reasoning + Action decision
+                Client2->>FileLock: Check file access for action
+                FileLock->>Client2: File access granted/denied
+            end
+            Client2->>API: POST /v1/report_result
+            FileLock->>DB: Release file locks
+            API->>ORM: Save RAHistory result
+            ORM->>DB: UPDATE task status to COMPLETED
+        end
+        
+        API->>Manager: Check workflow completion
+        Manager->>DB: Query all task statuses
+        
+        opt All Tasks Complete
+            Manager->>Auditor: Review all results from database
+            Auditor->>LLM: Evaluate quality with audit criteria
+            LLM->>Auditor: Quality assessment
+            Auditor->>ORM: Save AuditReport
+            ORM->>DB: Persist audit results
+            
+            alt Audit Failed
+                Manager->>ORM: Update tasks with rework suggestions
+                ORM->>DB: Reset task statuses for rework
+                Note over API: Return to client polling loop
+            else Audit Passed
+                Manager->>LLM: Synthesize all validated results
+                LLM->>Manager: Final consolidated response
+                Manager->>DB: Mark workflow as COMPLETED
+                Note over API: Workflow complete
+            end
+        end
+    end
+    
+    Note over User,DB: All coordination via FastAPI REST endpoints
+    Note over ORM,DB: Atomic SQLAlchemy operations ensure data consistency
+    Note over Client1,Client2: External clients enable distributed execution
+    Note over FileLock,DB: File access coordination prevents concurrent conflicts
+```
+
+## Data Flow Overview
+
+This sequence diagram illustrates the complete data flow through the AM (AgentManager) system, from task submission through external client coordination with file safety to final result synthesis.
+
+### Key Flow Features
+
+- **File Access Coordination**: Integrated file locking throughout task execution
+- **Concurrent Client Safety**: Database-tracked file access prevents conflicts
+- **Atomic Operations**: Transaction safety for all database operations
+- **Quality Control Loop**: Audit and rework cycle with result synthesis

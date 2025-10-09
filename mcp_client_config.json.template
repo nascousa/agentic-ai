@@ -1,0 +1,15 @@
+{
+  "client_id": "worker_example_001",
+  "server_url": "http://localhost:8000",
+  "poll_interval_sec": 5,
+  "max_retries": 3,
+  "timeout_sec": 30,
+  "agent_capabilities": [
+    "researcher",
+    "analyst", 
+    "coder",
+    "writer",
+    "reviewer"
+  ],
+  "log_level": "INFO"
+}

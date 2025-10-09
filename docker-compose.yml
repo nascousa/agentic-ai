@@ -1,0 +1,83 @@
+# Docker Compose for AM (AgentManager) MCP Server
+version: '3.8'
+
+services:
+  # MCP Server
+  agent-manager:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/agent_manager
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SERVER_API_TOKEN=${SERVER_API_TOKEN:-default_token}
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=agent_manager
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+  # MCP Worker Client (example)
+  worker-client:
+    build: .
+    command: ["python", "client_worker.py", "--config", "mcp_client_config.json"]
+    environment:
+      - LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      agent-manager:
+        condition: service_started
+    volumes:
+      - ./mcp_client_config.json:/app/mcp_client_config.json:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+    deploy:
+      replicas: 2  # Run 2 worker instances
+
+  # Redis (optional, for future caching/queuing)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - agent-manager-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  agent-manager-network:
+    driver: bridge
