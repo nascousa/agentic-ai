@@ -29,5 +29,5 @@ python agent.py [PROJECT_DIRECTORY]
 
 For example:
 ```bash
-python agent.py project
+python agent.py projects
 ```
