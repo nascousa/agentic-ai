@@ -134,7 +134,7 @@ IMPORTANT:
             
         Go/No-Go Checkpoint: Returns AuditReport with concrete rework_suggestions
         """
-        print(f"🔍 {self.name} starting audit for workflow: {workflow_id}")
+        print(f"[AUDIT] {self.name} starting audit for workflow: {workflow_id}")
         
         llm_client = await self.get_llm_client()
         system_prompt = self.get_audit_prompt()
@@ -161,13 +161,13 @@ IMPORTANT:
                 if "low confidence" not in audit_report.feedback.lower():
                     audit_report.feedback += f" NOTE: Confidence score ({audit_report.confidence_score}) below threshold ({self.confidence_threshold})."
             
-            print(f"  📋 Audit completed: {'✅ PASSED' if audit_report.is_successful else '❌ FAILED'}")
-            print(f"  🎯 Confidence: {audit_report.confidence_score:.2f}")
+            print(f"  [AUDIT] Audit completed: {'PASSED' if audit_report.is_successful else 'FAILED'}")
+            print(f"  [CONFIDENCE] {audit_report.confidence_score:.2f}")
             
             return audit_report
             
         except Exception as e:
-            print(f"  ❌ Audit error: {str(e)}")
+            print(f"  [ERROR] Audit error: {str(e)}")
             # Return failed audit with error details
             return AuditReport(
                 workflow_id=workflow_id,
@@ -295,7 +295,7 @@ Respond with just "PASS" or "FAIL" followed by a brief reason.
             new_criteria: New list of quality criteria
         """
         self.criteria = new_criteria
-        print(f"📋 {self.name} updated audit criteria ({len(new_criteria)} items)")
+        print(f"[AUDIT] {self.name} updated audit criteria ({len(new_criteria)} items)")
     
     def add_criterion(self, criterion: str) -> None:
         """
@@ -306,7 +306,7 @@ Respond with just "PASS" or "FAIL" followed by a brief reason.
         """
         if criterion not in self.criteria:
             self.criteria.append(criterion)
-            print(f"📋 {self.name} added new criterion: {criterion}")
+            print(f"[AUDIT] {self.name} added new criterion: {criterion}")
     
     def get_audit_summary(self, audit_report: AuditReport) -> str:
         """

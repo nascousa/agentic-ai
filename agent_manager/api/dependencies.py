@@ -77,12 +77,17 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     session_factory = get_session_factory()
     async with session_factory() as session:
         try:
+            print(f"[DEPENDENCY] Session created: {id(session)}")
             yield session
+            print(f"[DEPENDENCY] Committing session: {id(session)}")
             await session.commit()
-        except Exception:
+            print(f"[DEPENDENCY] ✅ Session committed successfully!")
+        except Exception as e:
+            print(f"[DEPENDENCY] ❌ Error during session handling: {e}")
             await session.rollback()
             raise
         finally:
+            print(f"[DEPENDENCY] Closing session: {id(session)}")
             await session.close()
 
 

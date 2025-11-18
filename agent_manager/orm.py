@@ -28,6 +28,92 @@ from sqlalchemy.sql import func
 Base = declarative_base()
 
 
+class ProjectORM(Base):
+    """
+    Project management for grouping related workflows.
+    
+    Represents a logical project that contains multiple workflows.
+    Projects can correspond to physical directories on disk.
+    """
+    __tablename__ = "projects"
+    
+    # Primary key
+    id: Mapped[UUID] = mapped_column(
+        PostgreSQL_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        comment="Internal database ID"
+    )
+    
+    # Project identification
+    project_id: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=False,
+        comment="External project identifier (e.g., PROJECT-20251110-001)"
+    )
+    
+    # Project name
+    project_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True,
+        comment="Human-readable project name"
+    )
+    
+    # Optional project path on filesystem
+    project_path: Mapped[Optional[str]] = mapped_column(
+        String(512),
+        nullable=True,
+        comment="Physical directory path for project files"
+    )
+    
+    # Project metadata
+    project_metadata: Mapped[Dict[str, Any]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+        comment="Additional project metadata and configuration"
+    )
+    
+    # Project status tracking
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="IN_PROGRESS",
+        index=True,
+        comment="Overall project status: PENDING, IN_PROGRESS, COMPLETED, FAILED"
+    )
+    
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        comment="Project creation timestamp"
+    )
+    
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+        comment="Last project update timestamp"
+    )
+    
+    # Relationships
+    workflows: Mapped[List["TaskGraphORM"]] = relationship(
+        "TaskGraphORM",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+    
+    def __repr__(self) -> str:
+        return f"<ProjectORM(project_id='{self.project_id}', name='{self.project_name}')>"
+
+
 class TaskGraphORM(Base):
     """
     Workflow management with complete TaskGraph persistence.
@@ -54,6 +140,23 @@ class TaskGraphORM(Base):
         index=True,
         nullable=False,
         comment="External workflow identifier for API access"
+    )
+    
+    # Workflow name
+    workflow_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="Untitled Workflow",
+        comment="Human-readable workflow name"
+    )
+    
+    # Project relationship
+    project_id: Mapped[Optional[UUID]] = mapped_column(
+        PostgreSQL_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        comment="Foreign key to parent project"
     )
     
     # Workflow content
@@ -97,6 +200,12 @@ class TaskGraphORM(Base):
     )
     
     # Relationships
+    project: Mapped[Optional["ProjectORM"]] = relationship(
+        "ProjectORM",
+        back_populates="workflows",
+        lazy="selectin"
+    )
+    
     tasks: Mapped[List["TaskStepORM"]] = relationship(
         "TaskStepORM",
         back_populates="task_graph",
@@ -152,6 +261,13 @@ class TaskStepORM(Base):
     )
     
     # Task content
+    task_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="Untitled Task",
+        comment="AI-generated human-readable task name"
+    )
+    
     task_description: Mapped[str] = mapped_column(
         Text,
         nullable=False,
@@ -172,6 +288,13 @@ class TaskStepORM(Base):
         nullable=False,
         default=list,
         comment="List of step_ids that must complete first"
+    )
+    
+    # Project path for file operations
+    project_path: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Absolute path to project folder for file operations"
     )
     
     # File access coordination
@@ -529,9 +652,63 @@ def get_all_tables():
     return [table.name for table in Base.metadata.tables.values()]
 
 
+class IDCounterORM(Base):
+    """
+    Sequential ID counter for PID/WID/TID generation.
+    
+    Maintains atomic counters for generating sequential IDs across
+    distributed workers and server restarts.
+    """
+    __tablename__ = "id_counters"
+    
+    # Primary key
+    id: Mapped[UUID] = mapped_column(
+        PostgreSQL_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        comment="Internal database ID"
+    )
+    
+    # Counter type (project/workflow/task)
+    counter_type: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+        index=True,
+        comment="Type of counter: project, workflow, task"
+    )
+    
+    # Current counter value
+    current_value: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        comment="Current counter value for sequential ID generation"
+    )
+    
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        comment="Counter creation timestamp"
+    )
+    
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+        comment="Last counter update timestamp"
+    )
+    
+    def __repr__(self) -> str:
+        return f"<IDCounterORM(type={self.counter_type}, value={self.current_value})>"
+
+
 def get_table_dependencies():
     """Get table creation order based on foreign key dependencies."""
     return {
+        "id_counters": [],  # Independent table for ID generation
         "task_graphs": [],
         "task_steps": ["task_graphs"],
         "results": ["task_steps"],

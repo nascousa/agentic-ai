@@ -17,6 +17,7 @@ from fastapi.encoders import jsonable_encoder
 import uvicorn
 
 from agent_manager.core.models import ErrorResponse
+from agent_manager.api.middleware import MetricsMiddleware, ErrorTrackingMiddleware
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -36,26 +37,48 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Handles database initialization, connection setup, and cleanup.
     """
     # Startup tasks
-    print("🚀 Starting AM (AgentManager) MCP Server...")
+    print("[STARTUP] Starting AM (AgentManager) MCP Server...")
+    
+    # Initialize monitoring
+    from agent_manager.monitoring import app_info
+    print("[STARTUP] Monitoring initialized")
     
     # Initialize database
     from agent_manager.db import create_database_tables, check_database_connection
     
     # Check database connection
     if await check_database_connection():
-        print("✅ Database connection successful")
+        print("[STARTUP] Database connection successful")
         # Create tables if they don't exist
         await create_database_tables()
     else:
-        print("❌ Database connection failed")
+        print("[ERROR] Database connection failed")
         raise RuntimeError("Failed to connect to database")
+    
+    # Initialize Redis cache (temporarily disabled for testing)
+    # try:
+    #     from agent_manager.core.redis_client import startup_redis
+    #     await startup_redis()
+    #     print("[STARTUP] Redis cache initialized")
+    # except Exception as e:
+    #     print(f"[WARNING] Redis cache initialization failed: {e}")
+    #     print("   Continuing without cache functionality...")
+    print("[WARNING] Redis cache temporarily disabled for testing")
     
     # TODO: Initialize LLM client connections
     
     yield
     
     # Shutdown tasks
-    print("🔄 Shutting down AM (AgentManager) MCP Server...")
+    print("[SHUTDOWN] Shutting down AM (AgentManager) MCP Server...")
+    
+    # Clean up Redis connections (non-blocking)
+    try:
+        from agent_manager.core.redis_client import shutdown_redis
+        await shutdown_redis()
+        print("[SHUTDOWN] Redis cache cleanup completed")
+    except Exception as e:
+        print(f"[WARNING] Redis cleanup failed: {e}")
     
     # Clean up database connections
     from agent_manager.db import cleanup_database
@@ -72,11 +95,15 @@ def create_application() -> FastAPI:
     app = FastAPI(
         title="AM (AgentManager) - MCP Server",
         description="Multi-Agent Coordination/Planning Server using FastAPI and SQLAlchemy ORM",
-        version="0.1.0",
+        version="1.2.0",
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
     )
+    
+    # Add monitoring middleware (must be added before other middleware)
+    app.add_middleware(MetricsMiddleware)
+    app.add_middleware(ErrorTrackingMiddleware)
     
     # Add CORS middleware for external client coordination
     app.add_middleware(
@@ -126,7 +153,10 @@ def create_application() -> FastAPI:
     
     # Include API routers
     from agent_manager.api.endpoints import router as api_router
+    from agent_manager.api.health import router as health_router
+    
     app.include_router(api_router, prefix="/v1")
+    app.include_router(health_router)  # Health and metrics at /health/*
     
     return app
 

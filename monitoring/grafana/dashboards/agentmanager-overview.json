@@ -1,0 +1,179 @@
+{
+  "dashboard": {
+    "title": "AgentManager Overview",
+    "uid": "agentmanager-overview",
+    "version": 1,
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Workflow Requests Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(agentmanager_workflow_requests_total[5m])",
+            "legendFormat": "{{status}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Active Workflows",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "agentmanager_active_workflows"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Task Queue Depth by Agent",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "agentmanager_task_queue_depth",
+            "legendFormat": "{{assigned_agent}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "API Request Duration (p95)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(agentmanager_api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "LLM Request Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(agentmanager_llm_requests_total[5m])",
+            "legendFormat": "{{model}} - {{status}}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "LLM Token Usage",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(agentmanager_llm_tokens_total[5m])",
+            "legendFormat": "{{model}} - {{type}}"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Database Query Duration (p95)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(agentmanager_db_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{operation}} {{table}}"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(agentmanager_system_errors_total[5m])",
+            "legendFormat": "{{component}} - {{error_type}}"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Worker Activity",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 32, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "agentmanager_worker_active",
+            "legendFormat": "{{worker_role}}"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Cache Hit Ratio",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 32, "w": 6, "h": 8},
+        "targets": [
+          {
+            "expr": "agentmanager_cache_hit_ratio"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Audit Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 32, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(agentmanager_audit_reports_total{is_successful='true'}[5m])) / sum(rate(agentmanager_audit_reports_total[5m]))"
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "System CPU Usage",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 40, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)",
+            "legendFormat": "CPU Usage %"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "System Memory Usage",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 40, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+            "legendFormat": "Memory Usage %"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Database Connections",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 40, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "agentmanager_db_connections_active"
+          }
+        ]
+      }
+    ]
+  }
+}

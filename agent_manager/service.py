@@ -28,6 +28,8 @@ from agent_manager.orm import (
     ResultORM,
     AuditReportORM,
     FileAccessORM,
+    ProjectORM,
+    ProjectORM,
 )
 
 
@@ -50,12 +52,47 @@ class DatabaseService:
         """
         self.session = session
     
-    async def save_task_graph(self, task_graph: TaskGraph) -> str:
+    async def create_project(self, project_name: str, project_path: str = None, metadata: dict = None) -> tuple[str, UUID]:
+        """
+        Create a new project in the database.
+        
+        Args:
+            project_name: Name of the project
+            project_path: Optional path to project folder
+            metadata: Optional project metadata
+            
+        Returns:
+            tuple[str, UUID]: (Sequential project ID like 'PID000001', Internal UUID)
+        """
+        from agent_manager.orm import ProjectORM
+        from agent_manager.id_generator import SequentialIDGenerator
+        from datetime import datetime, timezone
+        
+        # Generate sequential project_id (PID000001, PID000002, etc.)
+        project_id = await SequentialIDGenerator.get_next_project_id(self.session)
+        
+        project = ProjectORM(
+            project_id=project_id,
+            project_name=project_name,
+            project_path=project_path,
+            project_metadata=metadata or {},
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        
+        self.session.add(project)
+        await self.session.flush()  # Get the generated ID
+        
+        print(f"✅ Created project {project_id}: {project_name}")
+        return project_id, project.id
+    
+    async def save_task_graph(self, task_graph: TaskGraph, project_uuid: UUID = None) -> str:
         """
         Atomically persist TaskGraph with initial task states.
         
         Args:
             task_graph: TaskGraph to persist
+            project_uuid: Optional internal project UUID to link workflow to
             
         Returns:
             str: Workflow ID of saved TaskGraph
@@ -63,39 +100,86 @@ class DatabaseService:
         Go/No-Go Checkpoint: Task submission results in persisted TaskGraph with initial tasks marked READY
         """
         try:
-            # Create TaskGraphORM
+            from agent_manager.id_generator import SequentialIDGenerator
+            
+            # Generate sequential workflow ID
+            workflow_id = await SequentialIDGenerator.get_next_workflow_id(self.session)
+            
+            # Create TaskGraphORM with sequential ID
             task_graph_orm = TaskGraphORM(
-                workflow_id=task_graph.workflow_id,
+                workflow_id=workflow_id,
+                workflow_name=task_graph.workflow_name,
                 user_request=task_graph.metadata.get("user_request", ""),
                 workflow_metadata=task_graph.metadata,
                 status="IN_PROGRESS",
+                project_id=project_uuid,  # Use the internal UUID
                 created_at=task_graph.created_at
             )
             
             self.session.add(task_graph_orm)
             await self.session.flush()  # Get the ID
             
-            # Create TaskStepORM instances
+            # Create mapping of old step_ids to new sequential IDs
+            step_id_mapping = {}
+            
+            # Create TaskStepORM instances with sequential IDs
             for task in task_graph.tasks:
+                # Generate sequential task ID
+                task_id = await SequentialIDGenerator.get_next_task_id(self.session)
+                step_id_mapping[task.step_id] = task_id
+                
+                # Update dependencies to use new sequential IDs
+                updated_dependencies = [
+                    step_id_mapping.get(dep, dep) for dep in task.dependencies
+                ]
+                
                 task_step_orm = TaskStepORM(
-                    step_id=task.step_id,
-                    workflow_id=task_graph.workflow_id,
+                    step_id=task_id,
+                    workflow_id=workflow_id,
+                    task_name=task.task_name,
                     task_description=task.task_description,
                     assigned_agent=task.assigned_agent,
-                    dependencies=task.dependencies,
+                    dependencies=updated_dependencies,
+                    project_path=task.project_path,
                     status=task.status.value,
                     created_at=task.created_at
                 )
                 self.session.add(task_step_orm)
             
-            await self.session.commit()
+            # Don't commit here - let the dependency handle it
+            await self.session.flush()  # Ensure IDs are generated
             
-            print(f"✅ Saved TaskGraph {task_graph.workflow_id} with {len(task_graph.tasks)} tasks")
-            return task_graph.workflow_id
+            print(f"✅ Saved TaskGraph {workflow_id} with {len(task_graph.tasks)} tasks")
+            return workflow_id
             
         except Exception as e:
-            await self.session.rollback()
+            # Don't rollback here - let the dependency handle it
             print(f"❌ Failed to save TaskGraph: {str(e)}")
+            raise
+    
+    async def update_tasks_project_path(self, workflow_id: str, project_path: str) -> None:
+        """
+        Update project_path for all tasks in a workflow.
+        
+        Args:
+            workflow_id: Workflow identifier
+            project_path: Absolute path to project folder
+        """
+        try:
+            # Update all tasks for this workflow
+            stmt = (
+                update(TaskStepORM)
+                .where(TaskStepORM.workflow_id == workflow_id)
+                .values(project_path=project_path)
+            )
+            
+            await self.session.execute(stmt)
+            await self.session.flush()
+            
+            print(f"✅ Updated project_path for all tasks in workflow {workflow_id}")
+            
+        except Exception as e:
+            print(f"❌ Failed to update project_path: {str(e)}")
             raise
     
     async def get_task_graph(self, workflow_id: str) -> Optional[TaskGraph]:
@@ -127,9 +211,11 @@ class DatabaseService:
                 TaskStep(
                     step_id=task_orm.step_id,
                     workflow_id=task_orm.workflow_id,
+                    task_name=task_orm.task_name,
                     task_description=task_orm.task_description,
                     assigned_agent=task_orm.assigned_agent,
                     dependencies=task_orm.dependencies,
+                    project_path=task_orm.project_path,
                     status=TaskStatus(task_orm.status),
                     client_id=task_orm.client_id,
                     started_at=task_orm.started_at,
@@ -141,6 +227,7 @@ class DatabaseService:
             
             return TaskGraph(
                 workflow_id=task_graph_orm.workflow_id,
+                workflow_name=task_graph_orm.workflow_name,
                 tasks=tasks,
                 created_at=task_graph_orm.created_at,
                 metadata=task_graph_orm.workflow_metadata
@@ -153,17 +240,19 @@ class DatabaseService:
     async def get_and_claim_ready_task(
         self,
         agent_capabilities: List[str],
-        client_id: str
+        client_id: str,
+        preferred_task_id: Optional[str] = None
     ) -> Optional[TaskStep]:
         """
         Atomic query and claim operation for client polling.
         
         Finds the oldest READY task matching capabilities and atomically
-        claims it for the requesting client.
+        claims it for the requesting client. Can optionally prefer a specific task.
         
         Args:
             agent_capabilities: List of agent types client can handle
             client_id: Client identifier claiming the task
+            preferred_task_id: Optional specific task to try claiming first
             
         Returns:
             TaskStep: Claimed task or None if no tasks available
@@ -171,6 +260,47 @@ class DatabaseService:
         Go/No-Go Checkpoint: Prevents duplicate task assignment across concurrent clients
         """
         try:
+            # If preferred task specified, try to claim it first
+            if preferred_task_id:
+                preferred_stmt = (
+                    select(TaskStepORM)
+                    .where(
+                        TaskStepORM.step_id == preferred_task_id,
+                        TaskStepORM.status == TaskStatus.READY,
+                        TaskStepORM.assigned_agent.in_(agent_capabilities),
+                        TaskStepORM.client_id.is_(None)
+                    )
+                    .with_for_update()
+                )
+                
+                result = await self.session.execute(preferred_stmt)
+                preferred_task = result.scalar_one_or_none()
+                
+                if preferred_task:
+                    # Check dependencies are satisfied for preferred task
+                    if await self._check_task_dependencies_satisfied(preferred_task.step_id):
+                        # Claim the preferred task
+                        preferred_task.client_id = client_id
+                        preferred_task.status = TaskStatus.IN_PROGRESS
+                        preferred_task.started_at = datetime.utcnow()
+                        
+                        await self.session.commit()
+                        
+                        return TaskStep(
+                            step_id=preferred_task.step_id,
+                            workflow_id=preferred_task.workflow_id,
+                            task_name=preferred_task.task_name,
+                            task_description=preferred_task.task_description,
+                            assigned_agent=preferred_task.assigned_agent,
+                            dependencies=preferred_task.dependencies or [],
+                            project_path=preferred_task.project_path,
+                            file_dependencies=preferred_task.file_dependencies or [],
+                            file_access_types=preferred_task.file_access_types or [],
+                            status=TaskStatus.IN_PROGRESS,
+                            created_at=preferred_task.created_at,
+                            updated_at=preferred_task.updated_at
+                        )
+            
             # Find ready tasks matching capabilities with dependency check
             ready_tasks_stmt = (
                 select(TaskStepORM)
@@ -203,13 +333,28 @@ class DatabaseService:
             
             await self.session.commit()
             
+            # Get project path from workflow's project
+            workflow_stmt = select(TaskGraphORM).where(TaskGraphORM.workflow_id == task_orm.workflow_id)
+            workflow_result = await self.session.execute(workflow_stmt)
+            workflow_orm = workflow_result.scalar_one_or_none()
+            
+            project_path = None
+            if workflow_orm and workflow_orm.project_id:
+                project_stmt = select(ProjectORM).where(ProjectORM.id == workflow_orm.project_id)
+                project_result = await self.session.execute(project_stmt)
+                project_orm = project_result.scalar_one_or_none()
+                if project_orm:
+                    project_path = project_orm.project_path
+            
             # Convert to Pydantic model
             task_step = TaskStep(
                 step_id=task_orm.step_id,
                 workflow_id=task_orm.workflow_id,
+                task_name=task_orm.task_name,
                 task_description=task_orm.task_description,
                 assigned_agent=task_orm.assigned_agent,
                 dependencies=task_orm.dependencies,
+                project_path=task_orm.project_path or project_path,  # Use task's project_path first, fallback to workflow's
                 status=TaskStatus.IN_PROGRESS,
                 client_id=client_id,
                 started_at=task_orm.started_at,
@@ -296,9 +441,29 @@ class DatabaseService:
             task_orm.status = "COMPLETED"
             task_orm.completed_at = task_result.completed_at
             
+            # Store workflow_id and project_id before commit
+            workflow_id = task_result.workflow_id
+            
+            # Get workflow to find project_id before commit
+            workflow_stmt = (
+                select(TaskGraphORM)
+                .where(TaskGraphORM.workflow_id == workflow_id)
+            )
+            workflow_result = await self.session.execute(workflow_stmt)
+            workflow_orm = workflow_result.scalar_one_or_none()
+            project_id = workflow_orm.project_id if workflow_orm else None
+            
             await self.session.commit()
             
             print(f"✅ Saved result for task {task_result.task_id}")
+            
+            # Update workflow status if all tasks are completed
+            workflow_completed = await self.update_workflow_status_if_complete(workflow_id)
+            
+            # If workflow completed, check and update project status
+            if workflow_completed and project_id:
+                await self.update_project_status_if_complete(project_id)
+            
             return True
             
         except Exception as e:
@@ -392,6 +557,103 @@ class DatabaseService:
             
         except Exception as e:
             print(f"❌ Failed to check workflow completion: {str(e)}")
+            return False
+    
+    async def update_workflow_status_if_complete(self, workflow_id: str) -> bool:
+        """
+        Update workflow status to COMPLETED if all tasks are completed.
+        
+        Args:
+            workflow_id: Workflow to check and update
+            
+        Returns:
+            bool: True if workflow was marked as completed
+        """
+        try:
+            # Check if all tasks are completed
+            is_complete = await self.is_workflow_complete(workflow_id)
+            
+            if not is_complete:
+                return False
+            
+            # Update workflow status
+            stmt = (
+                select(TaskGraphORM)
+                .where(TaskGraphORM.workflow_id == workflow_id)
+                .with_for_update()
+            )
+            
+            result = await self.session.execute(stmt)
+            workflow_orm = result.scalar_one_or_none()
+            
+            if not workflow_orm:
+                print(f"❌ Workflow not found: {workflow_id}")
+                return False
+            
+            # Only update if not already completed
+            if workflow_orm.status != "COMPLETED":
+                workflow_orm.status = "COMPLETED"
+                await self.session.commit()
+                print(f"✅ Workflow {workflow_id} marked as COMPLETED")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            await self.session.rollback()
+            print(f"❌ Failed to update workflow status: {str(e)}")
+            return False
+    
+    async def update_project_status_if_complete(self, project_id: UUID) -> bool:
+        """
+        Update project status to COMPLETED if all workflows are completed.
+        
+        Args:
+            project_id: Project database ID to check and update
+            
+        Returns:
+            bool: True if project was marked as completed
+        """
+        try:
+            # Get project with all workflows
+            stmt = (
+                select(ProjectORM)
+                .where(ProjectORM.id == project_id)
+                .with_for_update()
+            )
+            
+            result = await self.session.execute(stmt)
+            project_orm = result.scalar_one_or_none()
+            
+            if not project_orm:
+                print(f"❌ Project not found: {project_id}")
+                return False
+            
+            # Check if all workflows are completed
+            workflow_stmt = (
+                select(TaskGraphORM)
+                .where(TaskGraphORM.project_id == project_id)
+            )
+            
+            workflow_result = await self.session.execute(workflow_stmt)
+            workflows = workflow_result.scalars().all()
+            
+            if not workflows:
+                return False
+            
+            all_completed = all(w.status == "COMPLETED" for w in workflows)
+            
+            if all_completed and project_orm.status != "COMPLETED":
+                project_orm.status = "COMPLETED"
+                await self.session.commit()
+                print(f"✅ Project {project_orm.project_id} marked as COMPLETED")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            await self.session.rollback()
+            print(f"❌ Failed to update project status: {str(e)}")
             return False
     
     async def get_workflow_results(self, workflow_id: str) -> List[RAHistory]:

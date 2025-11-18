@@ -85,10 +85,13 @@ class MCPWorkerClient:
         
         # Worker agent for task execution (will be instantiated per task)
         self.worker_agent = None
+        self.fast_mode = os.getenv('FAST_MODE', 'false').lower() == 'true'
         
         self.logger.info(f"🤖 Initialized MCP Worker Client {self.client_id}")
         self.logger.info(f"📡 Server: {config.server_url}")
         self.logger.info(f"🎯 Capabilities: {config.agent_capabilities}")
+        if self.fast_mode:
+            self.logger.info(f"⚡ Fast Mode: ENABLED (max 2 iterations)")
     
     def _setup_logging(self) -> None:
         """Configure logging for the client."""
@@ -207,7 +210,8 @@ class MCPWorkerClient:
             # Create WorkerAgent for this task
             worker_agent = WorkerAgent(
                 name=f"Worker_{self.client_id}",
-                role=task.assigned_agent
+                role=task.assigned_agent,
+                fast_mode=self.fast_mode
             )
             
             # Execute the task using WorkerAgent

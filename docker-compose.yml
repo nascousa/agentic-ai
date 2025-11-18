@@ -1,6 +1,4 @@
 # Docker Compose for AM (AgentManager) MCP Server
-version: '3.8'
-
 services:
   # MCP Server
   agent-manager:
@@ -9,6 +7,7 @@ services:
       - "8001:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/agent_manager
+      - REDIS_URL=redis://redis:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SERVER_API_TOKEN=${SERVER_API_TOKEN:-default_token}
       - LOG_LEVEL=INFO
@@ -18,7 +17,14 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./projects:/app/projects
       - ./.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -32,7 +38,6 @@ services:
       - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5433:5432"
     healthcheck:
@@ -51,14 +56,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=analyst-1
       - WORKER_ROLE=analyst
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -69,14 +82,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=analyst-2
       - WORKER_ROLE=analyst
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -87,14 +108,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=writer-1
       - WORKER_ROLE=writer
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -105,14 +134,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=writer-2
       - WORKER_ROLE=writer
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -123,14 +160,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=researcher-1
       - WORKER_ROLE=researcher
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -141,14 +186,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=researcher-2
       - WORKER_ROLE=researcher
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -159,14 +212,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=developer-1
       - WORKER_ROLE=developer
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -177,14 +238,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=developer-2
       - WORKER_ROLE=developer
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -195,14 +264,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=tester-1
       - WORKER_ROLE=tester
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -213,14 +290,22 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAST_MODE=false
       - WORKER_ID=architect-1
       - WORKER_ROLE=architect
     depends_on:
       agent-manager:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ./mcp_client_config.json:/app/mcp_client_config.json:ro
       - ./logs:/app/logs
+      - ./projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://agent-manager:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -232,6 +317,11 @@ services:
       - "6380:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
     networks:
       - agent-manager-network
@@ -243,3 +333,5 @@ volumes:
 networks:
   agent-manager-network:
     driver: bridge
+
+
