@@ -6,27 +6,29 @@ version: "1.4.0"
 last-updated: "2025-11-18"
 related-modules:
   - name: AgentManager Core
-    path: ./agent_manager/core
+    path: ./Demo4/agent_manager/core
   - name: FastAPI Endpoints
-    path: ./agent_manager/api
+    path: ./Demo4/agent_manager/api
   - name: SQLAlchemy ORM Layer
-    path: ./agent_manager/orm.py
+    path: ./Demo4/agent_manager/orm.py
   - name: Database Management
-    path: ./agent_manager/db.py
+    path: ./Demo4/agent_manager/db.py
   - name: File Access Coordination
-    path: ./agent_manager/core/file_lock.py
+    path: ./Demo4/agent_manager/core/file_lock.py
   - name: External Client Workers
-    path: ./client_worker.py
+    path: ./Demo4/client_worker.py
   - name: Docker Configuration
-    path: ./docker-compose.yml
+    path: ./Demo4/docker-compose.yml
   - name: Dashboard Application
-    path: ./app/dashboard.py
+    path: ./Demo4/app/dashboard.py
   - name: Dashboard API Client
-    path: ./app/api_client.py
+    path: ./Demo4/app/api_client.py
   - name: Environment Configuration
-    path: ./.env
+    path: ./Demo4/.env
+  - name: Database File
+    path: ./Demo4/agent_manager.db
   - name: Project Status Migration
-    path: ./scripts/migrate_add_project_status.py
+    path: ./Demo4/scripts/migrate_add_project_status.py
 architecture:
   style: "Centralized MCP Server with 10-Worker Client-Server Coordination via Docker Containers"
   deployment: "Docker Compose with 13 containers: server, database, cache, and 10 specialized workers"
