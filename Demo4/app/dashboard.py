@@ -221,7 +221,7 @@ class AgentManagerDashboard:
         fast_mode_frame = tk.Frame(container, bg=COLORS['bg_dark'])
         fast_mode_frame.pack(fill='x', pady=(10, 5))
         
-        self.fast_mode_var = tk.BooleanVar(value=False)
+        self.fast_mode_var = tk.BooleanVar(value=True)
         fast_mode_check = tk.Checkbutton(
             fast_mode_frame,
             text="⚡ Fast Mode (reduces iterations from 10→2, ~50% faster)",
