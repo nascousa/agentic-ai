@@ -1,8 +1,0 @@
-{
-  "client_id": "worker_001",
-  "server_url": "http://agent-manager:8000",
-  "auth_token": "am_server_30j_MNJFG086I8kh2fdsAU_aA7ggR4OTv5iR-tYcuyQ",
-  "polling_interval_sec": 5,
-  "max_parallel_tasks": 2,
-  "agent_capabilities": ["researcher", "writer", "analyst"]
-}
